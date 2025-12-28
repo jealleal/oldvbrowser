@@ -24,17 +24,22 @@ fn main() {
     let browser = loop {
         attempts += 1;
 
-        let result = Browser::start(
-            server_stream.clone(),
-            LaunchOptions::default_builder()
-                .path(Some("/usr/bin/chromium".into()))
-                .idle_browser_timeout(Duration::MAX)
-                .enable_logging(false)
-                .port(Some(9222))
-                .sandbox(false)
-                .build()
-                .unwrap(),
-        );
+    match Browser::start(server_stream.clone(),
+        LaunchOptions::default_builder()
+            .path(Some("/usr/bin/chromium".into()))
+            .idle_browser_timeout(Duration::MAX)
+            .enable_logging(false)
+            .port(Some(9222))
+            .sandbox(false)
+            .build()
+            .unwrap(),
+    ) {
+        Ok(_browser) => {
+            browser_ready.store(true, Ordering::SeqCst);
+        },
+        Err(_) => panic!("browser start failed"),
+    }
+
 
         match result {
             Ok(browser) => break browser,
