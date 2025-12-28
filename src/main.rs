@@ -1,5 +1,5 @@
 use std::{
-    io::{Read, Write},
+    io::{Read},
     thread,
     time::Duration,
     sync::{Arc, atomic::{AtomicBool, Ordering}},
@@ -21,28 +21,27 @@ fn main() {
     let ready_flag = browser_ready.clone();
 
     let mut attempts = 0;
-    let browser = loop {
+    loop {
         attempts += 1;
 
-    match Browser::start(server_stream.clone(),
-        LaunchOptions::default_builder()
-            .path(Some("/usr/bin/chromium".into()))
-            .idle_browser_timeout(Duration::MAX)
-            .enable_logging(false)
-            .port(Some(9222))
-            .sandbox(false)
-            .build()
-            .unwrap(),
-    ) {
-        Ok(_browser) => {
-            browser_ready.store(true, Ordering::SeqCst);
-        },
-        Err(_) => panic!("browser start failed"),
-    }
-
+        let result = Browser::start(
+            server_stream.clone(),
+            LaunchOptions::default_builder()
+                .idle_browser_timeout(Duration::MAX)
+                .enable_logging(false)
+                .port(Some(9222))
+                .sandbox(false)
+                .build()
+                .unwrap(),
+        );
 
         match result {
-            Ok(browser) => break browser,
+            Ok(_browser) => {
+                // Считаем браузер готовым сразу после успешного старта
+                // Если нужно, тут можно добавить прогрев страницы внутри Browser::start
+                ready_flag.store(true, Ordering::SeqCst);
+                break;
+            }
             Err(_) => {
                 if attempts >= 3 {
                     panic!("browser start failed");
@@ -50,13 +49,7 @@ fn main() {
                 thread::sleep(Duration::from_secs(2));
             }
         }
-    };
-
-    // Прогрев Page
-    let page = browser.new_page().unwrap();
-    page.navigate_to("about:blank").unwrap();
-    page.wait_for_navigation().unwrap();
-    ready_flag.store(true, Ordering::SeqCst);
+    }
 
     for mut req in server.incoming_requests() {
         let mut client_stream = client_stream.clone();
@@ -74,6 +67,7 @@ fn main() {
             }
 
             if !ready_flag.load(Ordering::SeqCst) {
+                // Если браузер ещё не готов, возвращаем 503
                 let _ = req.respond(Response::empty(StatusCode(503)));
                 return;
             }
