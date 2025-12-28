@@ -27,8 +27,15 @@ fn main() {
                 .enable_logging(false)
                 .port(Some(9222))
                 .sandbox(false)
+                .args(vec![
+                    "--headless=new".into(),
+                    "--disable-gpu".into(),
+                    "--disable-dev-shm-usage".into(),
+                    "--no-zygote".into(),
+                    "--single-process".into(),
+                ])
                 .build()
-                .unwrap(),
+                .unwrap()
         );
 
         if result.is_ok() {
