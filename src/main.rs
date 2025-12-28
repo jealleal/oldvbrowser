@@ -4,6 +4,7 @@ use std::{
     time::Duration,
 };
 
+
 use byteorder::{LittleEndian, ReadBytesExt};
 use headless_chrome::LaunchOptions;
 use roblox_browser::{browser::Browser, stream};
