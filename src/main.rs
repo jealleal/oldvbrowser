@@ -1,13 +1,12 @@
 use std::{
-    io::{self, Read},
+    io::{Read},
     thread,
     time::Duration,
 };
 
-use byteorder::{LittleEndian, ReadBytesExt};
 use headless_chrome::LaunchOptions;
 use roblox_browser::{browser::Browser, stream};
-use tiny_http::{Header, Response, Server, StatusCode};
+use tiny_http::{Header, Method, Response, Server, StatusCode};
 
 fn main() {
     let (mut client_stream, server_stream) = stream::stream(4 * 1024 * 1024);
@@ -15,12 +14,11 @@ fn main() {
 
     let server = Server::http("0.0.0.0:3000").unwrap();
 
-    // Пробуем запустить браузер, если не получится - повторяем
     let mut attempts = 0;
     loop {
         attempts += 1;
-        
-        let launch_result = Browser::start(
+
+        let result = Browser::start(
             server_stream.clone(),
             LaunchOptions::default_builder()
                 .idle_browser_timeout(Duration::MAX)
@@ -31,47 +29,58 @@ fn main() {
                 .unwrap(),
         );
 
-        match launch_result {
-            Ok(_) => break,
-            Err(e) => {
-                eprintln!("Ошибка запуска браузера (попытка {}): {}", attempts, e);
-                if attempts > 3 {
-                    panic!("Не удалось запустить браузер после 3 попыток");
-                }
-                thread::sleep(Duration::from_secs(2));
-            }
+        if result.is_ok() {
+            break;
         }
+
+        if attempts >= 3 {
+            panic!("browser start failed");
+        }
+
+        thread::sleep(Duration::from_secs(2));
     }
-    
-    println!("Браузер запущен успешно");
 
     for mut req in server.incoming_requests() {
         let mut client_stream = client_stream.clone();
 
         thread::spawn(move || {
-            let mut reader = req.as_reader();
-            let max = reader.read_u32::<LittleEndian>().unwrap() as usize;
+            if req.method() == &Method::Get {
+                let _ = req.respond(Response::from_string("OK"));
+                return;
+            }
 
-            io::copy(&mut reader, &mut client_stream).unwrap();
+            if req.method() != &Method::Post {
+                let _ = req.respond(Response::empty(StatusCode(405)));
+                return;
+            }
 
-            let mut buf = vec![0; max];
-            let amt = if max > 0 {
-                client_stream.read(&mut buf).unwrap()
-            } else {
-                0
+            let mut body = Vec::new();
+            if req.as_reader().read_to_end(&mut body).is_err() {
+                let _ = req.respond(Response::empty(StatusCode(400)));
+                return;
+            }
+
+            if client_stream.write_all(&body).is_err() {
+                let _ = req.respond(Response::empty(StatusCode(500)));
+                return;
+            }
+
+            let mut response = vec![0u8; 4 * 1024 * 1024];
+            let size = match client_stream.read(&mut response) {
+                Ok(n) => n,
+                Err(_) => {
+                    let _ = req.respond(Response::empty(StatusCode(500)));
+                    return;
+                }
             };
 
-            req.respond(Response::new(
+            let _ = req.respond(Response::new(
                 StatusCode(200),
-                vec![
-                    Header::from_bytes(&b"Content-Type"[..], &b"application/octet-stream"[..])
-                        .unwrap(),
-                ],
-                &buf[..amt],
-                Some(amt),
+                vec![Header::from_bytes("Content-Type", "application/octet-stream").unwrap()],
+                &response[..size],
+                Some(size),
                 None,
-            ))
-            .unwrap();
+            ));
         });
     }
 }
