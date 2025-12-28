@@ -25,7 +25,7 @@ fn main() {
             LaunchOptions::default_builder()
                 .idle_browser_timeout(Duration::MAX)
                 .enable_logging(false)
-                .port(9222)
+                .port(Some(9222))
                 .sandbox(false)
                 .build()
                 .unwrap(),
