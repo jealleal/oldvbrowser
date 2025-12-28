@@ -15,16 +15,35 @@ fn main() {
 
     let server = Server::http("0.0.0.0:3000").unwrap();
 
-    Browser::start(
-        server_stream,
-        LaunchOptions::default_builder()
-            .idle_browser_timeout(Duration::MAX)
-            .enable_logging(false)
-            .disable_default_flags()
-            .build()
-            .unwrap(),
-    )
-    .unwrap();
+    // Пробуем запустить браузер, если не получится - повторяем
+    let mut attempts = 0;
+    loop {
+        attempts += 1;
+        
+        let launch_result = Browser::start(
+            server_stream.clone(),
+            LaunchOptions::default_builder()
+                .idle_browser_timeout(Duration::MAX)
+                .enable_logging(false)
+                .port(9222)
+                .sandbox(false)
+                .build()
+                .unwrap(),
+        );
+
+        match launch_result {
+            Ok(_) => break,
+            Err(e) => {
+                eprintln!("Ошибка запуска браузера (попытка {}): {}", attempts, e);
+                if attempts > 3 {
+                    panic!("Не удалось запустить браузер после 3 попыток");
+                }
+                thread::sleep(Duration::from_secs(2));
+            }
+        }
+    }
+    
+    println!("Браузер запущен успешно");
 
     for mut req in server.incoming_requests() {
         let mut client_stream = client_stream.clone();
