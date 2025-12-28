@@ -20,6 +20,10 @@ fn main() {
         LaunchOptions::default_builder()
             .idle_browser_timeout(Duration::MAX)
             .enable_logging(false)
+            .disable_default_flags()
+            .arg("--no-sandbox")
+            .arg("--disable-gpu")
+            .arg("--disable-dev-shm-usage")
             .build()
             .unwrap(),
     )
