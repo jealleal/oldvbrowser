@@ -16,13 +16,12 @@ FROM debian:bookworm-slim
 
 # Устанавливаем необходимые зависимости и Chromium
 RUN apt-get update && apt-get install -y \
-    chromium-browser \
+    chromium \
     libnss3 \
     libxss1 \
-    libappindicator1 \
-    libindicator7 \
     fonts-liberation \
     xdg-utils \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
