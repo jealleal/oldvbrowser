@@ -5,7 +5,7 @@ use std::{
 };
 
 use byteorder::{LittleEndian, ReadBytesExt};
-use headless_chrome::{Browser, LaunchOptionsBuilder};
+use headless_chrome::LaunchOptionsBuilder;
 use roblox_browser::{browser::Browser as RobloxBrowser, stream};
 use tiny_http::{Header, Response, Server, StatusCode};
 
@@ -28,8 +28,30 @@ fn main() {
     let launch_options = LaunchOptionsBuilder::default()
         .idle_browser_timeout(Duration::MAX)
         .sandbox(false) // Отключаем sandbox для Railway
-        .disable_gpu(true) // Отключаем GPU
         .headless(true)
+        .args(vec![
+            "--no-sandbox",
+            "--disable-gpu",
+            "--disable-dev-shm-usage",
+            "--disable-setuid-sandbox",
+            "--disable-accelerated-2d-canvas",
+            "--disable-background-timer-throttling",
+            "--disable-backgrounding-occluded-windows",
+            "--disable-breakpad",
+            "--disable-component-extensions-with-background-pages",
+            "--disable-extensions",
+            "--disable-features=TranslateUI",
+            "--disable-ipc-flooding-protection",
+            "--disable-renderer-backgrounding",
+            "--enable-features=NetworkService,NetworkServiceInProcess",
+            "--force-color-profile=srgb",
+            "--hide-scrollbars",
+            "--metrics-recording-only",
+            "--mute-audio",
+            "--no-default-browser-check",
+            "--no-first-run",
+            "--no-zygote",
+        ])
         .build()
         .unwrap_or_else(|e| {
             eprintln!("Failed to build launch options: {}", e);
