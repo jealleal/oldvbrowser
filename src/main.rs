@@ -1,18 +1,20 @@
 use std::{
-    io::{Read},
+    io::{Read, Write},
     thread,
     time::Duration,
 };
 
+use byteorder::{LittleEndian, ReadBytesExt};
 use headless_chrome::LaunchOptions;
 use roblox_browser::{browser::Browser, stream};
 use tiny_http::{Header, Method, Response, Server, StatusCode};
 
 fn main() {
+    let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
+    let server = Server::http(format!("0.0.0.0:{port}")).unwrap();
+
     let (mut client_stream, server_stream) = stream::stream(4 * 1024 * 1024);
     client_stream.set_read_timeout(Duration::from_secs(15));
-
-    let server = Server::http("0.0.0.0:3000").unwrap();
 
     let mut attempts = 0;
     loop {
@@ -54,19 +56,23 @@ fn main() {
                 return;
             }
 
-            let mut body = Vec::new();
-            if req.as_reader().read_to_end(&mut body).is_err() {
-                let _ = req.respond(Response::empty(StatusCode(400)));
-                return;
-            }
+            let mut reader = req.as_reader();
 
-            if client_stream.write_all(&body).is_err() {
+            let max = match reader.read_u32::<LittleEndian>() {
+                Ok(v) => v as usize,
+                Err(_) => {
+                    let _ = req.respond(Response::empty(StatusCode(400)));
+                    return;
+                }
+            };
+
+            if std::io::copy(&mut reader, &mut client_stream).is_err() {
                 let _ = req.respond(Response::empty(StatusCode(500)));
                 return;
             }
 
-            let mut response = vec![0u8; 4 * 1024 * 1024];
-            let size = match client_stream.read(&mut response) {
+            let mut buf = vec![0u8; max];
+            let amt = match client_stream.read(&mut buf) {
                 Ok(n) => n,
                 Err(_) => {
                     let _ = req.respond(Response::empty(StatusCode(500)));
@@ -77,8 +83,8 @@ fn main() {
             let _ = req.respond(Response::new(
                 StatusCode(200),
                 vec![Header::from_bytes("Content-Type", "application/octet-stream").unwrap()],
-                &response[..size],
-                Some(size),
+                &buf[..amt],
+                Some(amt),
                 None,
             ));
         });
